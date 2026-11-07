@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Speargun Spots</title>
+<!-- the phone must not be able to zoom the page with two fingers, we zoom the map instead -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B1724">
+<!-- iPhone: open full screen, like an app, no Safari bar -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Speargun Spots">
+<meta name="description" content="Save spearfishing spots, catches and trips around Cyprus">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icons/favicon-32.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="stylesheet" href="./styles.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+</head>
+<body>
+
+<!-- ---------- top app bar (logo, title, my location, menu) ---------- -->
+<div id="topbar">
+  <svg class="logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 2 L12 14 L18 14 Z" stroke="#22D3EE" stroke-width="1.3" stroke-linejoin="round"/>
+    <path d="M12 2 L12 14 L7 14 Z" fill="#22D3EE"/>
+    <path d="M4 17 Q8 15 12 17 T20 17" stroke="#22D3EE" stroke-width="1.3" fill="none"/>
+    <path d="M4 20 Q8 18 12 20 T20 20" stroke="#22D3EE" stroke-width="1.3" fill="none" opacity="0.6"/>
+  </svg>
+  <h1 id="topbarTitle">Speargun Spots</h1>
+  <button class="icon-btn" id="btnLocate" title="My location">⌖</button>
+  <button class="icon-btn" id="btnMenu" title="Menu">⋮</button>
+</div>
+<div id="menuDropdown" class="hidden">
+  <button id="menuForecast">🌊 Today's forecast</button>
+  <button id="menuWeather">🌬 Live wind map</button>
+  <button id="menuSettings">⚙ Settings</button>
+  <button id="menuAbout">ℹ About</button>
+</div>
+
+<!-- ---------- the 3 tabs ---------- -->
+<div id="tabs">
+
+  <!-- Map tab -->
+  <section class="tab-page active" id="tabMap">
+    <div id="map"></div>
+    <button class="save-here-btn" id="btnSaveHere">📍 Save my location</button>
+    <button class="forecast-btn" id="btnForecast">Forecast</button>
+    <div class="map-fab-col">
+      <button class="fab" id="btnLayers" title="Map layers">☰</button>
+      <button class="fab primary" id="btnMyLocation" title="My location">⌖</button>
+    </div>
+    <div class="map-types" id="mapTypes">
+      <button data-type="nautical" class="active">Nautical</button>
+      <button data-type="satellite">Satellite</button>
+      <button data-type="normal">Normal</button>
+    </div>
+    <div class="legend-seabed" id="legendSeabed">
+      <span style="color:#920000">■</span> Rock
+      <span style="color:#FFFF80">■</span> Sand
+      <span style="color:#80D8FF">■</span> Mud
+      <span style="color:#AAAAAA">■</span> Posidonia
+    </div>
+  </section>
+
+  <!-- Spots tab -->
+  <section class="tab-page" id="tabSpots">
+    <div class="search-row">
+      <input type="search" id="spotSearch" placeholder="Search name, fish, notes">
+    </div>
+    <div class="sort-row">
+      <button class="sort-pill active" data-sort="nearest">📍 Nearest</button>
+      <button class="sort-pill" data-sort="best">🔥 Best</button>
+      <button class="sort-pill" data-sort="newest">🕒 Newest</button>
+    </div>
+    <div class="section-title" id="spotsTitle">⭐ My spots (0)</div>
+    <div class="list" id="spotsList"></div>
+    <button class="fab primary" id="fabAddSpot" style="position:absolute;right:16px;bottom:24px;">+</button>
+  </section>
+
+  <!-- Trip log tab -->
+  <section class="tab-page" id="tabTrips">
+    <div class="list" id="tripsList">
+      <div class="recording-banner off" id="recordingBanner">
+        <div class="rec-dot"></div>
+        <div id="recordingText">Allow the location to record your route.</div>
+      </div>
+      <button class="btn primary trip-record-btn" id="btnToggleTrip">Start trip</button>
+      <div id="tripCards"></div>
+      <div class="section-title" id="otherCatchesTitle" style="display:none;">Other catches (not in a trip)</div>
+      <div id="otherCatches"></div>
+      <div class="empty-note" id="noCatchesNote" style="display:none;">No catches yet. Tap + to add a catch with a photo.</div>
+    </div>
+    <button class="fab primary" id="fabAddCatch" style="position:absolute;right:16px;bottom:24px;">📷</button>
+  </section>
+</div>
+
+<!-- ---------- bottom navigation ---------- -->
+<div id="bottomnav">
+  <button class="active" data-tab="tabMap"><span class="nav-icon">⊙</span>Map</button>
+  <button data-tab="tabSpots"><span class="nav-icon">〰</span>Spots</button>
+  <button data-tab="tabTrips"><span class="nav-icon">📖</span>Trip log</button>
+</div>
+
+<!-- ---------- full screen overlays ---------- -->
+
+<div class="screen" id="screenSpotDetails">
+  <div class="screen-bar">
+    <button class="icon-btn" data-close="screenSpotDetails">←</button>
+    <h2 id="detailsTitle">Spot</h2>
+    <button class="icon-btn" id="btnEditFromDetails">✎</button>
+    <button class="icon-btn" id="btnDeleteFromDetails">🗑</button>
+  </div>
+  <div class="screen-body" id="detailsBody"></div>
+</div>
+
+<div class="screen" id="screenSpotForm">
+  <div class="screen-bar">
+    <button class="icon-btn" data-close="screenSpotForm">←</button>
+    <h2 id="spotFormTitle">Add spot</h2>
+  </div>
+  <div class="screen-body">
+    <form id="spotForm">
+      <label for="fName">Spot name</label>
+      <input type="text" id="fName" placeholder="e.g. Big rock at Pissouri">
+
+      <label for="fDepth">Depth (m)</label>
+      <input type="number" id="fDepth" step="0.1" min="0" placeholder="e.g. 16">
+
+      <label>Position</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="fLat" placeholder="Latitude (e.g. 34.65)">
+        <input type="text" id="fLon" placeholder="Longitude (e.g. 32.70)">
+      </div>
+      <button type="button" class="btn outline small" id="btnUseMyLocation" style="margin-top:8px;">Use my location</button>
+
+      <label>Seabed</label>
+      <div class="radio-row" id="seabedRadios"></div>
+
+      <label>Fish caught here</label>
+      <div class="check-row" id="fishChecks"></div>
+
+      <label>How good is the spot?</label>
+      <div class="rating-input" id="fRating"></div>
+
+      <label for="fNotes">Notes</label>
+      <textarea id="fNotes" placeholder="Free notes"></textarea>
+
+      <div class="btn-row">
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="screen" id="screenCatchForm">
+  <div class="screen-bar">
+    <button class="icon-btn" data-close="screenCatchForm">←</button>
+    <h2>Add catch</h2>
+  </div>
+  <div class="screen-body">
+    <form id="catchForm">
+      <label for="cSpot">Spot</label>
+      <select id="cSpot"></select>
+
+      <label for="cFish">Fish (e.g. 2 sea bream)</label>
+      <input type="text" id="cFish">
+
+      <label for="cKg">Weight (kg)</label>
+      <input type="number" id="cKg" step="0.1" min="0">
+
+      <label for="cNotes">Notes</label>
+      <textarea id="cNotes"></textarea>
+
+      <label>Photo</label>
+      <div class="photo-picker">
+        <img class="photo-preview" id="catchPhotoPreview" alt="">
+        <input type="file" accept="image/*" capture="environment" id="catchPhotoInput" style="display:none;">
+        <button type="button" class="btn outline small" id="btnTakePhoto">Take / choose photo</button>
+      </div>
+
+      <div class="btn-row">
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="screen" id="screenNavigate">
+  <div class="screen-bar">
+    <button class="icon-btn" data-close="screenNavigate">←</button>
+    <h2 id="navigateTitle">🧭 Navigate</h2>
+  </div>
+  <div class="nav-top">
+    <div class="nav-distance" id="navDistance">– m</div>
+    <div class="nav-trend" id="navTrend"></div>
+    <div class="nav-bearing" id="navBearing">DIRECTION –</div>
+    <div class="nav-speed" id="navSpeed"></div>
+  </div>
+  <div class="nav-arrived" id="navArrived">You are on it! 🎣</div>
+  <div class="nav-arrow-wrap"><div class="nav-arrow" id="navArrow">⬆</div></div>
+  <div class="nav-hint" id="navHint">Start moving: the arrow shows where to turn.</div>
+  <div id="navigateMap"></div>
+</div>
+
+<div class="screen" id="screenTripMap">
+  <div class="screen-bar">
+    <button class="icon-btn" data-close="screenTripMap">←</button>
+    <h2 id="tripMapTitle">Trip</h2>
+  </div>
+  <div id="tripFullMap" style="flex:1 1 auto; isolation:isolate;"></div>
+  <div style="display:flex; gap:10px; padding:12px 16px calc(14px + var(--safe-bottom)); background:var(--surface); border-top:1px solid var(--line);">
+    <div style="flex:1; text-align:center;"><div style="font-size:11px;color:var(--muted);">AREA</div><div id="tripStatArea">–</div></div>
+    <div style="flex:1; text-align:center;"><div style="font-size:11px;color:var(--muted);">TIME</div><div id="tripStatTime">–</div></div>
+    <div style="flex:1; text-align:center;"><div style="font-size:11px;color:var(--muted);">KM</div><div id="tripStatKm">–</div></div>
+    <div style="flex:1; text-align:center;"><div style="font-size:11px;color:var(--muted);">KM/H</div><div id="tripStatSpeed">–</div></div>
+    <div style="flex:1; text-align:center;"><div style="font-size:11px;color:var(--muted);">CATCHES</div><div id="tripStatCatches">–</div></div>
+  </div>
+</div>
+
+<div class="screen" id="screenWeather">
+  <div class="screen-bar">
+    <button class="icon-btn" data-close="screenWeather">←</button>
+    <h2>Live wind map</h2>
+  </div>
+  <iframe id="weatherFrame" src="about:blank"></iframe>
+</div>
+
+<div class="screen" id="screenSettings">
+  <div class="screen-bar">
+    <button class="icon-btn" data-close="screenSettings">←</button>
+    <h2>Settings</h2>
+  </div>
+  <div class="screen-body">
+    <div class="settings-row">
+      <div class="settings-text">Vibrate near my spots and protected zones</div>
+      <label class="switch"><input type="checkbox" id="switchVibration"><span class="track"></span></label>
+    </div>
+    <div class="settings-note">When it is on, the phone vibrates on the Map tab when you are 100 m from a saved spot or inside a protected zone. (Needs a browser that supports vibration; iPhone Safari does not.)</div>
+  </div>
+</div>
+
+<!-- ---------- bottom sheets / dialogs ---------- -->
+
+<div class="sheet-backdrop" id="spotCardBackdrop">
+  <div class="sheet" id="spotCardSheet"></div>
+</div>
+
+<div class="sheet-backdrop" id="layersBackdrop">
+  <div class="sheet">
+    <h3>Map layers</h3>
+    <div id="layersList"></div>
+    <div class="btn-row"><button class="btn primary" data-close-sheet="layersBackdrop">Done</button></div>
+  </div>
+</div>
+
+<div class="sheet-backdrop center" id="dialogBackdrop">
+  <div class="sheet" id="dialogSheet"></div>
+</div>
+
+<div class="sheet-backdrop center" id="photoBackdrop">
+  <div class="sheet" id="photoSheet"></div>
+</div>
+
+<div class="sheet-backdrop center" id="dayPickBackdrop">
+  <div class="sheet">
+    <h3>Sea forecast</h3>
+    <div style="color:var(--muted);font-size:12px;margin-bottom:10px;">Choose a day</div>
+    <div id="dayPickList"></div>
+  </div>
+</div>
+
+<div class="sheet-backdrop center" id="forecastBackdrop">
+  <div class="sheet">
+    <h3 id="forecastDayTitle">Sea forecast</h3>
+    <div class="forecast-head" id="forecastHead"></div>
+    <div id="forecastList"></div>
+    <div class="btn-row"><button class="btn primary" data-close-sheet="forecastBackdrop">OK</button></div>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<div id="installHint">
+  <button class="hint-close" id="installHintClose">✕</button>
+  Add Speargun Spots to your Home Screen: tap <b>Share</b> ⬆ then <b>"Add to Home Screen"</b>.
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
